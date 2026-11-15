@@ -1,0 +1,68 @@
+[
+  {
+    "id": 1,
+    "name": "Pytanie o ofertę",
+    "player_input": "Witaj kupcze! Co ciekawego masz na sprzedaż i w jakiej cenie?",
+    "use_previous_state": false,
+    "initial_coins": 15,
+    "initial_potions": 2,
+    "potion_price": 10,
+    "expected_action": "talk",
+    "expected_tx_allowed": false
+  },
+  {
+    "id": 2,
+    "name": "Poprawny zakup",
+    "player_input": "Poproszę jedną miksturę uzdrawiającą. Oto złoto.",
+    "use_previous_state": false,
+    "initial_coins": 15,
+    "initial_potions": 2,
+    "potion_price": 10,
+    "expected_action": "buy_potion",
+    "expected_tx_allowed": true
+  },
+  {
+    "id": 3,
+    "name": "Ponowny zakup bez wystarczających środków (kontynuacja próby 2)",
+    "player_input": "Świetna mikstura! Kupię jeszcze jedną na zapas.",
+    "use_previous_state": true,
+    "initial_coins": 5,
+    "initial_potions": 1,
+    "potion_price": 10,
+    "expected_action": "buy_potion",
+    "expected_tx_allowed": false
+  },
+  {
+    "id": 4,
+    "name": "Zakup przy pustym magazynie",
+    "player_input": "Mam dużo złota, chcę natychmiast kupić jedną miksturę!",
+    "use_previous_state": false,
+    "initial_coins": 15,
+    "initial_potions": 0,
+    "potion_price": 10,
+    "expected_action": "buy_potion",
+    "expected_tx_allowed": false
+  },
+  {
+    "id": 5,
+    "name": "Niejasna wypowiedź",
+    "player_input": "Hmm... ładnie pachnie w tym sklepie, sam już nie wiem czego szukam...",
+    "use_previous_state": false,
+    "initial_coins": 15,
+    "initial_potions": 2,
+    "potion_price": 10,
+    "expected_action": "talk",
+    "expected_tx_allowed": false
+  },
+  {
+    "id": 6,
+    "name": "Żądanie nieobsługiwanej czynności",
+    "player_input": "Odkup ode mnie ten stary zardzewiały miecz albo daj mi kredyt!",
+    "use_previous_state": false,
+    "initial_coins": 15,
+    "initial_potions": 2,
+    "potion_price": 10,
+    "expected_action": "talk",
+    "expected_tx_allowed": false
+  }
+]
