@@ -1,100 +1,103 @@
-# Warsztat 4 — Rozmowa z kupcem sterowanym przez LLM (Google AI Studio)
+# Warsztat 4 — Rozmowa z kupcem sterowanym przez LLM
 
 ## 1. Temat i autorzy
+Uzupełnione elementy kodu: MerchantResponse, build_merchant_prompt.
 
-**Temat:** Rozmowa z kupcem sterowanym przez LLM — połączenie swobodnego dialogu ze ściśle określonym stanem gry  
-**Data:** ....................................  
-**Numer/nazwa zespołu:** ....................................  
-**Członkowie zespołu (imiona i nazwiska):** ........................................................................  
-**Przewodnik z zespołu liderskiego (imię i nazwisko):** ....................................................  
 
----
+**Temat:** Rozmowa z kupcem sterowanym przez LLM — połączenie swobodnego dialogu ze ściśle kontrolowanym stanem gry  
+**Data:** _[uzupełnijcie]_  
+**Numer/nazwa zespołu:** _[uzupełnijcie]_  
+**Członkowie zespołu (imiona i nazwiska):** _[uzupełnijcie]_  
+**Przewodnik z zespołu liderskiego (imię i nazwisko):** _[uzupełnijcie]_
 
-## 2. Cel i wykonane zmiany
+## 2. Cel ćwiczenia
 
-**Cel ćwiczenia:**  
-Zbudowanie tekstowego dialogu z kupcem w grze RPG z wykorzystaniem potężnego modelu językowego Gemma udostępnianego przez chmurę Google AI Studio. Poznanie i praktyczna implementacja podziału odpowiedzialności pomiędzy generatywny model językowy (rozpoznawanie intencji gracza i generowanie odpowiedzi w roli postaci w formacie JSON) a deterministyczną logikę programu (walidacja struktury JSON, weryfikacja dozwolonych akcji oraz rozstrzyganie transakcji na podstawie stanu gry: salda monet i zapasu mikstur).
+**Cel:** Zbudować dialog z kupcem NPC, w którym model LLM zwraca odpowiedź JSON (`reply`, `action`), a silnik gry w Pythonie waliduje odpowiedź i sam decyduje o zmianie stanu (`coins`, `potions`).
 
-**Podział odpowiedzialności (0–10 min):**
-- **Za co odpowiada model LLM (`gemma-4-26b-a4b-it`):** ........................................................................
-- **Za co odpowiada logika programu (Python):** ........................................................................
-- **Dlaczego program nie może ufać samej treści wypowiedzi modelu (`reply`) przy zmianie stanu gry?** ........................................................................
+## 3. Przebieg prac (chronologicznie)
 
-**Wykonane zmiany i uzupełnione elementy kodu:**
-1. **Instrukcja systemowa (`build_merchant_prompt`) i schemat JSON (`MerchantResponse`):**  
-   *(Wklej poniżej krótką treść użytego promptu systemowego dla kupca bez przeklejania całego kodu notatnika)*
-   ```text
-   [TUTAJ WKLEJ TREŚĆ SWOJEGO PROMPTU SYSTEMOWEGO]
-   ```
-2. **Walidacja odpowiedzi i logika transakcji (`parse_and_validate_response`, `process_turn`):**  
-   *(Opisz w 2–4 zdaniach, jakie warunki sprawdza program przed odjęciem monet i wydaniem mikstury oraz jak reaguje na niepoprawny JSON, nieznaną akcję lub timeout)*  
-   ................................................................................................................................................
+### 3.1. Etap 0–10 min: środowisko i podział odpowiedzialności
 
----
-
-## 3. Eksperyment
-
-**Środowisko i model:**
+**Model i środowisko:**
 | Parametr | Użyta wartość |
 |---|---|
-| Nazwa i wersja modelu LLM | `gemma-4-26b-a4b-it` (Google Gemma) |
-| Temperatura generowania (`temperature`) | `0.2` |
-| Ziarno losowości (`seed`) | `42` |
-| Limit czasu oczekiwania (`timeout_sec`) | `20.0` s |
-| Wymuszanie schematu odpowiedzi (`format`) | JSON Schema (`MerchantResponse.model_json_schema()`) |
-| Domyślny stan początkowy gry | Gracz: `15` monet, Kupiec: `2` mikstury, Cena: `10` monet |
-| Dozwolone akcje (`ALLOWED_ACTIONS`) | `["talk", "buy_potion"]` |
+| Model LLM | `gemma-2-2b-it` (Google AI Studio API) |
+| Temperatura (`temperature`) | `0.2` |
+| Limit czasu (`timeout_sec`) | `20.0` s |
+| Dozwolone akcje | `talk`, `buy_potion` |
+| Domyślny stan gry | 15 monet, 2 mikstury, cena 10 monet |
 
-**Scenariusze testowe:**  
-Przeprowadzono 6 obowiązkowych prób obejmujących: (1) pytanie o ofertę, (2) poprawny zakup mikstury, (3) ponowny zakup bez wystarczających środków (kontynuujący stan po 2. próbie: 5 monet, 1 mikstura), (4) zakup przy pustym magazynie (0 mikstur), (5) niejasną wypowiedź gracza oraz (6) żądanie nieobsługiwanej czynności (np. sprzedaż przedmiotu / kredyt).
+**Podział odpowiedzialności:**
+- **Za co odpowiada model LLM:** _[uzupełnijcie]_  
+- **Za co odpowiada logika programu (Python):** _[uzupełnijcie]_  
+- **Dlaczego nie można ufać samemu `reply` przy zmianie stanu gry:** _[uzupełnijcie]_
 
----
+### 3.2. Etap 10–30 min: prompt systemowy i schemat JSON
 
-## 4. Wyniki
+**Uzupełnione elementy kodu:** `MerchantResponse`, `build_merchant_prompt`.
 
-### 4.1. Tabela sześciu testów obowiązkowych
+**Wymuszanie formatu odpowiedzi:** JSON Schema (`MerchantResponse.model_json_schema()`).
 
-> Wpisz rzeczywiste wyniki uzyskane podczas eksperymentów (możesz wygenerować tabelę pomocniczą funkcją `print_markdown_table(test_results)` w notatniku).
+**Skrócona treść finalnego promptu systemowego kupca:**  
+_(to ma być treść z funkcji `build_merchant_prompt(...)` po Waszych zmianach — nie zmyślony opis i nie cały kod, tylko sam tekst instrukcji)_
 
-| Nr | Scenariusz | Wypowiedź gracza | Stan początkowy | Poprawny JSON? | Proponowana akcja (`action`) | Odpowiedź modelu (`reply` - skrót) | Decyzja programu (walidacja i stan) | Stan końcowy |
-|---:|---|---|---|---|---|---|---|---|
-| 1 | Pytanie o ofertę | | 15 monet, 2 mikstury | | | | | |
-| 2 | Poprawny zakup | | 15 monet, 2 mikstury | | | | | |
-| 3 | Ponowny zakup (brak monet) | | 5 monet, 1 mikstura | | | | | |
-| 4 | Zakup (pusty magazyn) | | 15 monet, 0 mikstur | | | | | |
-| 5 | Niejasna wypowiedź | | 15 monet, 2 mikstury | | | | | |
-| 6 | Nieobsługiwana czynność | | 15 monet, 2 mikstury | | | | | |
+```text
+[TUTAJ WKLEJCIE SWÓJ FINALNY PROMPT SYSTEMOWY DLA KUPCA]
+```
 
-### 4.2. Analiza rozdziału trzech warstw poprawności
+### 3.3. Etap 30–55 min: walidacja i deterministyczna logika gry
 
-- **Poprawność formatu (JSON Schema):** Ile razy na 6 prób model zwrócił poprawny syntaktycznie JSON zgodny ze schematem? Czy testy odporności walidatora (błędny JSON, nieznana akcja, timeout) zachowały nienaruszony stan gry?  
-  ................................................................................................................................................
-- **Poprawność rozpoznania intencji (`action`):** W których scenariuszach model trafnie rozpoznał intencję (`talk` vs `buy_potion`), a w których zaproponował błędną akcję (np. `buy_potion` mimo braku monet lub braku towaru)?  
-  ................................................................................................................................................
-- **Poprawność zmiany stanu gry:** Czy mimo ewentualnych błędnych propozycji modelu (halucynacji transakcji w polu `reply` lub nadmiarowego `buy_potion`) stan gry w programie zmienił się wyłącznie w próbie nr 2?  
-  ................................................................................................................................................
+**Po uzupełnieniu:** `parse_and_validate_response`, `process_turn`.
 
-### 4.3. Zakres dodatkowy (opcjonalnie — dla zespołów, które skończyły wcześniej)
+**Opis działania (2–5 zdań):**  
+_[uzupełnijcie: co sprawdzacie w JSON, jak obsługujecie nieznaną akcję, timeout i kiedy dokładnie zmienia się stan]_ 
 
-**Opis drugiej postaci (styl wypowiedzi):** ........................................................................  
-**Zaobserwowany wpływ zmiany stylu na poprawność formatu JSON i rozpoznawanie akcji `action`:**  
-................................................................................................................................................
+**Testy odporności walidatora wykonane w notatniku:**
+- uszkodzony JSON,
+- akcja spoza listy dozwolonej,
+- halucynacja zakupu przy niewystarczających środkach.
 
----
+**Wniosek z testów odporności:** _[uzupełnijcie]_ 
 
-## 5. Wnioski i ograniczenia
+### 3.4. Etap 55–75 min: 6 scenariuszy obowiązkowych
 
-**Co zadziałało i jakie obserwacje to potwierdzają:**  
-................................................................................................................................................
+**Źródło scenariuszy:** `data/test_scenarios.json`.
 
-**Co nie zadziałało / napotkane trudności i ograniczenia modelu (np. niespójność między `reply` a decyzją silnika gry):**  
-................................................................................................................................................
+| Nr | Scenariusz | Wypowiedź gracza | Stan początkowy | JSON poprawny? | `action` modelu | Decyzja programu | Stan końcowy |
+|---:|---|---|---|---|---|---|---|
+| 1 | Pytanie o ofertę | _[uzupełnijcie]_ | 15 monet, 2 mikstury | _[uzupełnijcie]_ | _[uzupełnijcie]_ | _[uzupełnijcie]_ | _[uzupełnijcie]_ |
+| 2 | Poprawny zakup | _[uzupełnijcie]_ | 15 monet, 2 mikstury | _[uzupełnijcie]_ | _[uzupełnijcie]_ | _[uzupełnijcie]_ | _[uzupełnijcie]_ |
+| 3 | Ponowny zakup (brak monet) | _[uzupełnijcie]_ | 5 monet, 1 mikstura | _[uzupełnijcie]_ | _[uzupełnijcie]_ | _[uzupełnijcie]_ | _[uzupełnijcie]_ |
+| 4 | Zakup (pusty magazyn) | _[uzupełnijcie]_ | 15 monet, 0 mikstur | _[uzupełnijcie]_ | _[uzupełnijcie]_ | _[uzupełnijcie]_ | _[uzupełnijcie]_ |
+| 5 | Niejasna wypowiedź | _[uzupełnijcie]_ | 15 monet, 2 mikstury | _[uzupełnijcie]_ | _[uzupełnijcie]_ | _[uzupełnijcie]_ | _[uzupełnijcie]_ |
+| 6 | Nieobsługiwana czynność | _[uzupełnijcie]_ | 15 monet, 2 mikstury | _[uzupełnijcie]_ | _[uzupełnijcie]_ | _[uzupełnijcie]_ | _[uzupełnijcie]_ |
 
-**Wkład poszczególnych członków zespołu:**
+### 3.5. Etap 75–90 min: podsumowanie wyników
+
+**Analiza trzech warstw poprawności:**
+- **Poprawność formatu (JSON Schema):** _[uzupełnijcie]_  
+- **Poprawność rozpoznania intencji (`action`):** _[uzupełnijcie]_  
+- **Poprawność zmian stanu gry:** _[uzupełnijcie]_  
+
+## 4. Zakres dodatkowy (opcjonalnie)
+
+**Druga postać i styl wypowiedzi:** _[uzupełnijcie]_  
+**Wpływ stylu na poprawność JSON i `action`:** _[uzupełnijcie]_  
+**Krótki komentarz porównawczy do kupca Barnaby:** _[uzupełnijcie]_ 
+
+## 5. Podsumowanie i wnioski
+
+**Co zadziałało najlepiej:** _[uzupełnijcie]_  
+**Najważniejsze ograniczenia i trudności:** _[uzupełnijcie]_  
+**Dlaczego wzorzec LLM + deterministyczny silnik jest bezpieczniejszy niż sam LLM:** _[uzupełnijcie]_  
+**Stan rozwiązania na koniec 90 minut:** _[uzupełnijcie]_ 
+
+**Wkład członków zespołu:**
 
 | Imię i nazwisko | Wykonane zadania podczas warsztatu |
 |---|---|
-| | |
-| | |
-| | |
-| | |
+| _[osoba 1]_ | _[uzupełnijcie]_ |
+| _[osoba 2]_ | _[uzupełnijcie]_ |
+| _[osoba 3]_ | _[uzupełnijcie]_ |
+| _[osoba 4, jeśli dotyczy]_ | _[uzupełnijcie]_ |
+| _[osoba 5, jeśli dotyczy]_ | _[uzupełnijcie]_ |
