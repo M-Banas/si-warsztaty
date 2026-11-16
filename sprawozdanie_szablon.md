@@ -21,7 +21,7 @@ Uzupełnione elementy kodu: MerchantResponse, build_merchant_prompt.
 **Model i środowisko:**
 | Parametr | Użyta wartość |
 |---|---|
-| Model LLM | `gemma-2-2b-it` (Google AI Studio API) |
+| Model LLM | `gemma-4-26b-a4b-it` (Google AI Studio API) |
 | Temperatura (`temperature`) | `0.2` |
 | Limit czasu (`timeout_sec`) | `20.0` s |
 | Dozwolone akcje | `talk`, `buy_potion` |
