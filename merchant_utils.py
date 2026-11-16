@@ -81,10 +81,8 @@ def call_llm(
             response_mime_type="application/json",
         )
         
-        # Inicjalizacja modelu
         model_instance = genai.GenerativeModel(model_name=model)
         
-        # Obejściowy sposób przekazania schematu - doklejenie go do instrukcji systemowej
         schema_instruction = ""
         if schema:
             schema_instruction = f"\n\nMUSISZ ODPOWIEDZIEĆ W ŚCISŁYM FORMACIE JSON ZGODNYM Z PONIŻSZYM SCHEMATEM:\n{json.dumps(schema, ensure_ascii=False)}"

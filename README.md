@@ -7,7 +7,7 @@ Wymagany Python 3.11 lub nowszy oraz aktywne połączenie z internetem.
 Zaloguj się na swoje konto Google i wygeneruj klucz API w usłudze Google AI Studio:
 ### https://aistudio.google.com/api-keys
 
-Skopiuj wygenerowany klucz. Na zajęciach będziemy używać potężnego modelu **Gemma 2 2B (`gemma-2-2b-it`)** udostępnianego przez chmurę Google. Dzięki temu nie obciążymy procesora Twojego komputera.
+Skopiuj wygenerowany klucz. Na zajęciach będziemy używać potężnego modelu **Gemma 2 2B (`gemma-2-2b-it`)** udostępnianego przez chmurę Google.
 
 ## 2. Przygotowanie środowiska Python
 
