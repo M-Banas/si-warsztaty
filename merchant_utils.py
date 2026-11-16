@@ -1,15 +1,18 @@
-"""Narzędzia pomocnicze do warsztatu 4: Rozmowa z kupcem sterowanym przez LLM (Google Gemma)."""
+"""Narzędzia pomocnicze do warsztatu 4: Rozmowa z kupcem sterowanym przez LLM (Google AI Studio)."""
 
 import json
 import time
+import os
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import ollama
+import google.generativeai as genai
 
-DEFAULT_MODEL = "gemma2:2b"
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+
+DEFAULT_MODEL = "gemma-2-2b-it"
 ALLOWED_ACTIONS = ("talk", "buy_potion")
 
 
@@ -69,29 +72,30 @@ def call_llm(
     seed: int = 42,
     timeout_sec: float = 20.0,
 ) -> tuple[str, float, bool, str | None]:
-    """Wywołuje lokalny model Google Gemma przez Ollama z obsługą timeoutu i schematu JSON.
-
-    Zwraca krotkę: (surowy_tekst_odpowiedzi, czas_w_sekundach, czy_timeout, komunikat_błędu).
-    """
+    """Wywołuje model Google Gemma przez API Google AI Studio z obsługą formatu JSON."""
+    
     def _invoke() -> str:
-        kwargs: dict[str, Any] = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
-            "options": {
-                "temperature": temperature,
-                "seed": seed,
-            },
-        }
-        if schema is not None:
-            kwargs["format"] = schema
-        else:
-            kwargs["format"] = "json"
+        # Konfiguracja wymuszająca odpowiedź w formacie JSON
+        generation_config = genai.GenerationConfig(
+            temperature=temperature,
+            response_mime_type="application/json",
+        )
+        
+        # Inicjalizacja modelu
+        model_instance = genai.GenerativeModel(model_name=model)
+        
+        # Obejściowy sposób przekazania schematu - doklejenie go do instrukcji systemowej
+        schema_instruction = ""
+        if schema:
+            schema_instruction = f"\n\nMUSISZ ODPOWIEDZIEĆ W ŚCISŁYM FORMACIE JSON ZGODNYM Z PONIŻSZYM SCHEMATEM:\n{json.dumps(schema, ensure_ascii=False)}"
 
-        response = ollama.chat(**kwargs)
-        return response["message"]["content"]
+        full_prompt = f"{system_prompt}{schema_instruction}\n\nWYPOWIEDŹ GRACZA: {user_message}"
+        
+        response = model_instance.generate_content(
+            full_prompt,
+            generation_config=generation_config
+        )
+        return response.text
 
     start = time.perf_counter()
     with ThreadPoolExecutor(max_workers=1) as executor:
@@ -117,7 +121,7 @@ def show_dialogue_screen(turn: TurnResult, character_name: str = "Kupiec Barnaba
     print(sep)
     print(f" [STAN PRZED]  Gracz: {turn.state_before.coins} monet | "
           f"Magazyn kupca: {turn.state_before.potions} szt. (cena: {turn.state_before.potion_price} monet)")
-    print(f' [GRACZ]       "{turn.player_input}"')
+    print(f" [GRACZ]       '{turn.player_input}'")
     print(sep)
     if turn.timed_out:
         print(f" [MODEL LLM]   TIMEOUT ({turn.elapsed_sec:.2f} s) - {turn.error}")
@@ -125,7 +129,7 @@ def show_dialogue_screen(turn: TurnResult, character_name: str = "Kupiec Barnaba
         print(f" [MODEL LLM]   BŁĄD ({turn.elapsed_sec:.2f} s) - {turn.error}")
     else:
         print(f" [SUROWY JSON] {turn.raw_output.strip()} ({turn.elapsed_sec:.2f} s)")
-        print(f' [{character_name.upper()}] "{turn.merchant_reply}"')
+        print(f" [{character_name.upper()}] '{turn.merchant_reply}'")
         print(f" [PROPOZYCJA]  action = {turn.proposed_action!r} "
               f"(JSON poprawny: {'TAK' if turn.json_valid else 'NIE'}, "
               f"Akcja dozwolona: {'TAK' if turn.action_valid else 'NIE'})")
@@ -176,6 +180,6 @@ def print_markdown_table(results: list[TurnResult]) -> None:
         if len(reply_clean) > 60:
             reply_clean = reply_clean[:57] + "..."
         print(
-            f'| {idx} | {r.scenario_name} | "{r.player_input}" | {s_before} | '
-            f'{json_ok} | `{r.proposed_action}` | "{reply_clean}" | {r.system_message} | {s_after} |'
+            f"| {idx} | {r.scenario_name} | '{r.player_input}' | {s_before} | "
+            f"{json_ok} | `{r.proposed_action}` | '{reply_clean}' | {r.system_message} | {s_after} |"
         )

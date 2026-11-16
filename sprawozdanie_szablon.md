@@ -1,4 +1,4 @@
-# Warsztat 4 — Rozmowa z kupcem sterowanym przez LLM
+# Warsztat 4 — Rozmowa z kupcem sterowanym przez LLM (Google AI Studio)
 
 ## 1. Temat i autorzy
 
@@ -13,10 +13,10 @@
 ## 2. Cel i wykonane zmiany
 
 **Cel ćwiczenia:**  
-Zbudowanie tekstowego dialogu z kupcem w grze RPG z wykorzystaniem lokalnego modelu językowego Google Gemma. Poznanie i praktyczna implementacja podziału odpowiedzialności pomiędzy generatywny model językowy (rozpoznawanie intencji gracza i generowanie odpowiedzi w roli postaci w formacie JSON) a deterministyczną logikę programu (walidacja struktury JSON, weryfikacja dozwolonych akcji oraz rozstrzyganie transakcji na podstawie stanu gry: salda monet i zapasu mikstur).
+Zbudowanie tekstowego dialogu z kupcem w grze RPG z wykorzystaniem potężnego modelu językowego Gemma udostępnianego przez chmurę Google AI Studio. Poznanie i praktyczna implementacja podziału odpowiedzialności pomiędzy generatywny model językowy (rozpoznawanie intencji gracza i generowanie odpowiedzi w roli postaci w formacie JSON) a deterministyczną logikę programu (walidacja struktury JSON, weryfikacja dozwolonych akcji oraz rozstrzyganie transakcji na podstawie stanu gry: salda monet i zapasu mikstur).
 
 **Podział odpowiedzialności (0–10 min):**
-- **Za co odpowiada model LLM (`gemma2:2b`):** ........................................................................
+- **Za co odpowiada model LLM (`gemma-2-2b-it`):** ........................................................................
 - **Za co odpowiada logika programu (Python):** ........................................................................
 - **Dlaczego program nie może ufać samej treści wypowiedzi modelu (`reply`) przy zmianie stanu gry?** ........................................................................
 
@@ -37,7 +37,7 @@ Zbudowanie tekstowego dialogu z kupcem w grze RPG z wykorzystaniem lokalnego mod
 **Środowisko i model:**
 | Parametr | Użyta wartość |
 |---|---|
-| Nazwa i wersja modelu LLM | `gemma2:2b` (Google Gemma przez Ollama) |
+| Nazwa i wersja modelu LLM | `gemma-2-2b-it` (Google Gemma) |
 | Temperatura generowania (`temperature`) | `0.2` |
 | Ziarno losowości (`seed`) | `42` |
 | Limit czasu oczekiwania (`timeout_sec`) | `20.0` s |

@@ -1,42 +1,55 @@
-"""Skrypt weryfikujący przygotowanie środowiska oraz połączenie z modelem Google Gemma w Ollama."""
+"""Skrypt weryfikujący przygotowanie środowiska oraz połączenie z modelem Gemma w Google AI Studio."""
 
+import os
 import sys
 import time
 
-MODEL_NAME = "gemma2:2b"
+MODEL_NAME = "gemma-2-2b-it"
 
 
 def main() -> None:
-    print("=== Weryfikacja środowiska (Warsztat 4: Kupiec LLM - Google Gemma) ===")
+    print("=== Weryfikacja środowiska (Warsztat 4: Kupiec LLM - Google AI Studio) ===")
     print(f"Wersja Python: {sys.version.split()[0]}")
 
     try:
-        import ollama
+        import google.generativeai as genai
         import pydantic
-        print(f"[OK] Biblioteka ollama zainstalowana.")
+        print(f"[OK] Biblioteka google-generativeai zainstalowana.")
         print(f"[OK] Biblioteka pydantic ({pydantic.__version__}) zainstalowana.")
     except ImportError as e:
         print(f"[BŁĄD] Brak wymaganej biblioteki: {e}")
         print("Uruchom: pip install -r requirements.txt")
         sys.exit(1)
 
-    print(f"\nSprawdzanie połączenia z serwerem Ollama i modelu '{MODEL_NAME}'...")
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        print("[BŁĄD] Brak klucza API w zmiennych środowiskowych!")
+        print("Ustaw klucz poleceniem:")
+        print(" Windows PowerShell: $env:GEMINI_API_KEY=\"Twój_Klucz\"")
+        print(" Linux/macOS: export GEMINI_API_KEY=\"Twój_Klucz\"")
+        sys.exit(1)
+    
+    print("[OK] Zmienna środowiskowa GEMINI_API_KEY jest ustawiona.")
+    genai.configure(api_key=api_key)
+
+    print(f"\nSprawdzanie połączenia z Google AI Studio i modelu '{MODEL_NAME}'...")
     try:
         start = time.perf_counter()
-        response = ollama.chat(
-            model=MODEL_NAME,
-            messages=[{"role": "user", "content": "Odpowiedz jednym słowem: działa?"}],
-            options={"temperature": 0.1, "num_predict": 15},
+        
+        model = genai.GenerativeModel(model_name=MODEL_NAME)
+        response = model.generate_content(
+            "Odpowiedz jednym słowem: działa?",
+            generation_config=genai.GenerationConfig(temperature=0.1)
         )
         elapsed = time.perf_counter() - start
-        content = response["message"]["content"].strip()
-        print(f"[OK] Odpowiedź modelu ({elapsed:.2f} s): {content}")
+        content = response.text.strip()
+        print(f"[OK] Odpowiedź chmury Google ({elapsed:.2f} s): {content}")
         print("\nŚrodowisko jest w pełni gotowe do pracy!")
     except Exception as e:
-        print(f"[BŁĄD] Nie udało się wywołać modelu '{MODEL_NAME}': {e}")
+        print(f"[BŁĄD] Nie udało się wywołać modelu '{MODEL_NAME}' w AI Studio: {e}")
         print("Upewnij się, że:")
-        print("  1. Aplikacja Ollama jest uruchomiona w tle (`ollama serve`).")
-        print(f"  2. Model został pobrany przed zajęciami (`ollama pull {MODEL_NAME}`).")
+        print("  1. Masz połączenie z internetem.")
+        print("  2. Twój klucz API jest poprawny (skopiowany z https://aistudio.google.com/api-keys).")
         sys.exit(1)
 
 

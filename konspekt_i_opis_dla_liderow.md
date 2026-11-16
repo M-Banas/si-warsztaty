@@ -1,26 +1,16 @@
 # Konspekt, opis zadania i materiały weryfikacyjne dla zespołu liderskiego
-## Warsztat 4: Rozmowa z kupcem sterowanym przez LLM (Google Gemma)
+## Warsztat 4: Rozmowa z kupcem sterowanym przez LLM (Google AI Studio)
 
 ---
 
 ## 1. Lista kontrolna zespołu liderskiego przed zajęciami (Checklista)
 
-1. **Pobranie i weryfikacja modelu lokalnego na CPU:**
-   - Domyślny model w pakiecie: **`gemma2:2b`** (Google Gemma 2B Instruct w Ollama, rozmiar ~1.6 GB).
-   - Działa płynnie na CPU typowego laptopa studenckiego (czas generowania pojedynczej odpowiedzi JSON wynosi ~0.7–2.5 s na CPU).
-   - Alternatywa dla starszych laptopów (np. 8 GB RAM bez GPU): `ollama pull gemma3:1b` (~815 MB) — wystarczy zmienić stałą `DEFAULT_MODEL = "gemma3:1b"` w `merchant_utils.py`.
-   - Przed warsztatem przypomnijcie uczestnikom na MS Teams o wykonaniu:
-     ```bash
-     ollama pull gemma2:2b
-     ```
-2. **Próba czasowa całego ćwiczenia (pomiar referencyjny na CPU):**
-   - Weryfikacja środowiska (`sprawdz_srodowisko.py`): ~1 min.
-   - Sekcja 1 (omówienie odpowiedzialności + start sprawozdania): ~8 min.
-   - Sekcja 2 (uzupełnienie schematu Pydantic + promptu kupca + 2 próby): ~15 min.
-   - Sekcja 3 (walidacja JSON + reguły transakcji w `process_turn` + 3 testy jednostkowe odporności): ~20 min.
-   - Sekcja 4 (uruchomienie 6 prób z `data/test_scenarios.json` na CPU): ~10 min (samo wykonanie 6 zapytań do `gemma2:2b` zajmuje łącznie ~6–12 sekund).
-   - Sekcja 5 (analiza tabeli i uzupełnienie wniosków w `sprawozdanie_szablon.md`): ~15 min.
-   - **Łączny czas wykonania zakresu podstawowego:** ~69 minut (zostaje ~21 minut zapasu na eksperymenty z promptem lub realizację zakresu dodatkowego z drugą postacią).
+1. **Ustawienie Google AI Studio:**
+   - Weryfikacja, czy klucz API (`GEMINI_API_KEY`) został wygenerowany poprawnie pod adresem: https://aistudio.google.com/api-keys
+   - Przypomnienie uczestnikom o ustawieniu zmiennej środowiskowej przed uruchomieniem notatnika.
+2. **Próba czasowa całego ćwiczenia (wersja w chmurze API):**
+   - Odpowiedzi z Google AI Studio będą błyskawiczne (znacznie szybsze niż lokalna Ollama na procesorach laptopów). Zespoły powinny szybciej poradzić sobie z częścią generacyjną.
+
 
 ---
 
@@ -47,7 +37,12 @@
 ### Część I: Wprowadzenie (10 minut przed częścią roboczą)
 - **0–3 min:** Przedstawienie problemu inżynierskiego — dlaczego w grach i systemach biznesowych LLM nigdy nie może bezpośrednio modyfikować bazy danych ani stanu gry (ryzyko halucynacji, podatność na *prompt injection*, brak determinizmu).
 - **3–7 min:** Omówienie architektury rozwiązania:
-  - Gracz $ightarrow$ Prompt z aktualnym stanem $ightarrow$ **Google Gemma (`gemma2:2b`)** $ightarrow$ Surowy JSON `{"reply": "...", "action": "..."}` $ightarrow$ **Walidator i Silnik Gry w Pythonie** $ightarrow$ Decyzja i aktualizacja `GameState`.
+  - Gracz $
+ightarrow$ Prompt z aktualnym stanem $
+ightarrow$ **Google Gemma (`gemma2:2b`)** $
+ightarrow$ Surowy JSON `{"reply": "...", "action": "..."}` $
+ightarrow$ **Walidator i Silnik Gry w Pythonie** $
+ightarrow$ Decyzja i aktualizacja `GameState`.
   - Podkreślenie różnicy między **propozycją modelu (`action`)** a **decyzją programu (`tx_allowed`)**.
 - **7–10 min:** Instrukcja organizacyjna — pobranie pakietu startowego, uruchomienie `python sprawdz_srodowisko.py`, przypomnienie o zasadzie pisania sprawozdania na bieżąco i oddaniu plików przed końcem 90. minuty.
 
