@@ -12,7 +12,7 @@ import google.generativeai as genai
 
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
-DEFAULT_MODEL = "gemma-2-2b-it"
+DEFAULT_MODEL = "gemma-4-26b-a4b-it"
 ALLOWED_ACTIONS = ("talk", "buy_potion")
 
 

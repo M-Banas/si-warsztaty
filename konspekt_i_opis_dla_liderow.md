@@ -37,7 +37,7 @@
 - **3–7 min:** Omówienie architektury rozwiązania:
   - Gracz $
 ightarrow$ Prompt z aktualnym stanem $
-ightarrow$ **Google Gemma (`gemma-2-2b-it`)** $
+ightarrow$ **Google Gemma (`gemma-4-26b-a4b-it`)** $
 ightarrow$ Surowy JSON `{"reply": "...", "action": "..."}` $
 ightarrow$ **Walidator i Silnik Gry w Pythonie** $
 ightarrow$ Decyzja i aktualizacja `GameState`.
@@ -48,7 +48,7 @@ ightarrow$ Decyzja i aktualizacja `GameState`.
 
 | Przedział czasu | Zadanie uczestników | Zadania przewodników z zespołu liderskiego |
 |---|---|---|
-| **0–10 min** | Omówienie podziału odpowiedzialności (LLM vs logika gry). Otwarcie `sprawozdanie_szablon.md`, wpisanie autorów, nazwy modelu (`gemma-2-2b-it`) i sekcji 2. Uruchomienie sekcji 1 w notatniku. | Sprawdzenie, czy na każdym stanowisku działa połączenie z Google AI Studio z modelem `gemma-2-2b-it`. Dopilnowanie, by każdy zespół otworzył szablon sprawozdania. |
+| **0–10 min** | Omówienie podziału odpowiedzialności (LLM vs logika gry). Otwarcie `sprawozdanie_szablon.md`, wpisanie autorów, nazwy modelu (`gemma-4-26b-a4b-it`) i sekcji 2. Uruchomienie sekcji 1 w notatniku. | Sprawdzenie, czy na każdym stanowisku działa połączenie z Google AI Studio z modelem `gemma-4-26b-a4b-it`. Dopilnowanie, by każdy zespół otworzył szablon sprawozdania. |
 | **10–30 min** | Uzupełnienie klasy `MerchantResponse` (JSON Schema) oraz funkcji `build_merchant_prompt(state)`. Przetestowanie zwykłego pytania o ofertę i prośby o zakup. | Zwrócenie uwagi, czy zespoły przekazują zmienne `state.coins`, `state.potions`, `state.potion_price` do f-stringa oraz czy jasno definiują kiedy użyć `"talk"` vs `"buy_potion"`. |
 | **30–55 min** | Implementacja `parse_and_validate_response` oraz logiki transakcji w `process_turn`. Uruchomienie 3 testów odporności walidatora. | Weryfikacja, czy kod sprawdza oba warunki (`potions > 0` oraz `coins >= potion_price`) i czy nie modyfikuje stanu przed walidacją. |
 | **55–75 min** | Wykonanie 6 obowiązkowych prób z `data/test_scenarios.json` (z zachowaniem ciągłości stanu między próbą 2 a 3). Zespoły szybsze przechodzą do Sekcji 6 (druga postać). | Kontrola próby nr 3 — upewnienie się, że zespoły używają flagi `use_previous_state` (stan startowy próby 3 musi wynosić `5 monet, 1 mikstura`). |
