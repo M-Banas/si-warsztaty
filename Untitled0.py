@@ -26,11 +26,11 @@
 # %% [markdown] id="SwdCDk8wNPCR"
 # ### Konfiguracja połączenia
 #
-# Do połączenia z modelem użyjemy OpenRoutera i biblioteki `openai`. Żeby nie wklejać klucza API wprost do kodu, skorzystamy z wbudowanych sekretów Google Colab:
+# Do połączenia z modelem użyjemy biblioteki `openai` oraz dowolnego dostawcy zgodnego z jej API (domyślnie OpenRoutera — adres `PROVIDER_BASE_URL` możesz zmienić w polu formularza obok komórki). Żeby nie wklejać klucza API wprost do kodu, skorzystamy z wbudowanych sekretów Google Colab:
 #
-# 1. Wygeneruj klucz API na stronie [OpenRouter](https://openrouter.ai/keys) (albo użyj klucza udostępnionego na warsztatach).
+# 1. Wygeneruj klucz API u wybranego dostawcy, np. na stronie [OpenRouter](https://openrouter.ai/keys) (albo użyj klucza udostępnionego na warsztatach).
 # 2. W Google Colab kliknij ikonę klucza (**Sekrety** / *Secrets*) na pasku po lewej stronie.
-# 3. Dodaj nowy wpis o nazwie `OPENROUTER_API_KEY` i wklej swój klucz w polu wartości.
+# 3. Dodaj nowy wpis o nazwie `PROVIDER_API_KEY` i wklej swój klucz w polu wartości.
 # 4. Włącz przełącznik dostępu dla tego notatnika (*Dostęp z notatnika* / *Notebook access*).
 #
 # Dlaczego tak, a nie `api_key="sk-..."` w komórce? Notatniki bardzo często krążą potem na Teamsach, lądują na GitHubie albo widać je na rzutniku podczas prezentacji. Gdy klucz zostanie zapisany w kodzie, łatwo go przypadkiem udostępnić innym osobom, które będą mogły korzystać z Twojego konta.
@@ -39,9 +39,11 @@
 from openai import OpenAI
 from google.colab import userdata
 
+PROVIDER_BASE_URL = "https://openrouter.ai/api/v1"  # @param {type:"string"}
+
 client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=userdata.get("OPENROUTER_API_KEY")
+    base_url=PROVIDER_BASE_URL,
+    api_key=userdata.get("PROVIDER_API_KEY")
 )
 
 # %% [markdown] id="YVbYeHOFNhLK"
@@ -355,7 +357,7 @@ def call_merchant_llm(
     max_output_tokens: Optional[int] = None,
     reasoning_effort: Optional[str] = None,
 ) -> tuple[str, float, bool, Optional[str]]:
-    """Wywołuje model przez OpenRouter z obsługą limitu czasu i zwraca (tekst, czas_s, czy_timeout, błąd)."""
+    """Wywołuje model przez skonfigurowane API z obsługą limitu czasu i zwraca (tekst, czas_s, czy_timeout, błąd)."""
     target_model = model_name or model.value
 
     def _invoke() -> str:
