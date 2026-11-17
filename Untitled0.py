@@ -26,7 +26,7 @@
 # %% [markdown] id="SwdCDk8wNPCR"
 # ### Konfiguracja połączenia
 #
-# Do połączenia z modelem użyjemy biblioteki `openai` oraz dowolnego dostawcy zgodnego z jej API (domyślnie OpenRoutera — adres `PROVIDER_BASE_URL` możesz zmienić w polu formularza obok komórki). Żeby nie wklejać klucza API wprost do kodu, skorzystamy z wbudowanych sekretów Google Colab:
+# Do połączenia z modelem użyjemy biblioteki `openai` oraz dowolnego dostawcy zgodnego z jej API (domyślnie OpenRoutera, ale adres `PROVIDER_BASE_URL` możesz zmienić w polu formularza obok komórki). Żeby nie wklejać klucza API wprost do kodu, skorzystamy z wbudowanych sekretów Google Colab:
 #
 # 1. Wygeneruj klucz API u wybranego dostawcy, np. na stronie [OpenRouter](https://openrouter.ai/keys) (albo użyj klucza udostępnionego na warsztatach).
 # 2. W Google Colab kliknij ikonę klucza (**Sekrety** / *Secrets*) na pasku po lewej stronie.
@@ -49,9 +49,9 @@ client = OpenAI(
 # %% [markdown] id="YVbYeHOFNhLK"
 # ### Wybór modelu
 #
-# Poniższa komórka pobiera z OpenRoutera listę darmowych modeli obsługujących tekst (z końcówką `:free`). Domyślnie zaznaczony jest `nvidia/nemotron-3.5-super-vl:free`. Wybierz model z listy i kliknij **Testuj połączenie**, żeby upewnić się, że wszystko działa.
+# Poniższa komórka pobiera z API listę darmowych modeli obsługujących tekst (z końcówką `:free`). Domyślnie zaznaczony jest `nvidia/nemotron-3.5-super-vl:free`. Wybierz model z listy i kliknij **Testuj połączenie**, żeby upewnić się, że wszystko działa.
 #
-# Darmowe modele na OpenRouterze bywają czasem przeciążone lub limitowane. Jeśli trafisz na błąd albo bardzo długi czas odpowiedzi, wróć tutaj, wybierz inny model z listy i ponownie przetestuj połączenie. Pamiętaj też, żeby zapisać ostateczną nazwę modelu w sprawozdaniu.
+# Darmowe modele bywają czasem przeciążone lub limitowane. Jeśli trafisz na błąd albo bardzo długi czas odpowiedzi, wróć tutaj, wybierz inny model z listy i ponownie przetestuj połączenie. Pamiętaj też, żeby zapisać ostateczną nazwę modelu w sprawozdaniu.
 
 # %% id="fBlLPA9BaBb_"
 import ipywidgets as widgets
@@ -123,7 +123,9 @@ display(form)
 # - kupiec ma na stanie 2 mikstury uzdrawiające,
 # - jedna mikstura kosztuje 10 monet, a pojedynczy zakup dotyczy zawsze jednej sztuki.
 #
-# Wszystkie te liczby przechowujemy w zwykłej klasie w Pythonie (`GameState`), a nie w samej historii rozmowy z modelem. Gdybyśmy pozwolili modelowi pamiętać i liczyć pieniądze samodzielnie, gracz mógłby w rozmowie wytargować rabat, poprosić o towar na kredyt albo po prostu wykorzystać błąd rachunkowy modelu. Oprócz stanu definiujemy też stałą `ALLOWED_ACTIONS`, czyli zamkniętą listę akcji, jakie program w ogóle potrafi obsłużyć (`"talk"` i `"buy_potion"`).
+# Wszystkie te liczby przechowujemy w zwykłej klasie w Pythonie (`GameState`), a nie w samej historii rozmowy z modelem. Gdybyśmy pozwolili modelowi pamiętać i liczyć pieniądze samodzielnie, gracz mógłby w rozmowie wytargować rabat, poprosić o towar na kredyt albo po prostu wykorzystać błąd rachunkowy modelu.
+#
+# Oprócz klasy stanu definiujemy też krotkę `ALLOWED_ACTIONS`, czyli zamkniętą listę akcji, jakie nasz program w ogóle potrafi obsłużyć (`"talk"` oraz `"buy_potion"`). Metoda `copy()` przyda nam się za chwilę, żeby podczas przetwarzania tury pracować na bezpiecznej kopii stanu gry.
 
 # %%
 from dataclasses import dataclass
@@ -133,14 +135,11 @@ ALLOWED_ACTIONS = ("talk", "buy_potion")
 
 @dataclass
 class GameState:
-    """Stan gry utrzymywany wyłącznie przez program w Pythonie."""
-
     coins: int = 15
     potions: int = 2
     potion_price: int = 10
 
     def copy(self) -> "GameState":
-        """Zwraca niezależną kopię stanu gry."""
         return GameState(
             coins=self.coins,
             potions=self.potions,
@@ -148,10 +147,13 @@ class GameState:
         )
 
     def format_short(self) -> str:
-        """Krótki zapis stanu do logów i tabel."""
         return f"monety={self.coins}, mikstury={self.potions} (cena={self.potion_price})"
 
 
+# %% [markdown]
+# Utwórzmy obiekt ze stanem początkowym, z którego będziemy korzystać w kolejnych krokach.
+
+# %%
 initial_state = GameState()
 print(f"Dozwolone akcje: {ALLOWED_ACTIONS}")
 print(f"Stan początkowy: {initial_state.format_short()}")
@@ -176,8 +178,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class MerchantResponse(BaseModel):
-    """Struktura odpowiedzi wymagana od modelu językowego."""
-
     model_config = ConfigDict(extra="forbid")
 
     reply: str = Field(description="Wypowiedź kupca skierowana do gracza po polsku.")
@@ -204,11 +204,10 @@ print(json.dumps(RESPONSE_SCHEMA, indent=2, ensure_ascii=False))
 # - co dokładnie sprzedaje i czego nie robi (np. nie skupuje przedmiotów i nie sprzedaje na kredyt),
 # - kiedy w polu `action` wpisać `"buy_potion"`, a kiedy zostawić `"talk"`.
 #
-# Poniżej definiujemy funkcję `build_merchant_prompt(state)`, która wstawia bieżące wartości ze stanu gry do instrukcji. W kolejnej komórce możesz przetestować ją interaktywnie na własnych wypowiedziach gracza.
+# Funkcja `build_merchant_prompt(state)` wstawia bieżące wartości ze stanu gry bezpośrednio do treści instrukcji.
 
 # %%
 def build_merchant_prompt(state: GameState) -> str:
-    """Buduje instrukcję systemową dla kupca na podstawie aktualnego stanu gry."""
     return f"""Jesteś kupcem Barnabą prowadzącym sklep z miksturami w grze RPG.
 Odpowiadasz krótko (1-2 zdania), w klimacie fantasy i wyłącznie po polsku.
 
@@ -225,6 +224,9 @@ Zasady sklepu i wyboru pola "action":
 4. Wybierz action="talk", gdy gracz wita się, pyta o ofertę lub cenę, mówi niejasno albo prosi o coś nieobsługiwanego (np. sprzedaż miecza czy pożyczkę).
 """
 
+
+# %% [markdown]
+# Poniższy formularz pozwala wypróbować instrukcję systemową i sprawdzić, jaki JSON zwraca model dla różnych wypowiedzi gracza. Schemat `MerchantResponse.model_json_schema()` przekazujemy w parametrze `text`.
 
 # %% id="1Dmf5XML-ALi"
 import ipywidgets as widgets
@@ -300,8 +302,10 @@ structured_form = widgets.VBox(
 )
 display(structured_form)
 
+# %% [markdown]
+# Sprawdźmy teraz automatycznie dwa podstawowe przypadki z opisu zadania: zwykłe pytanie o ofertę (oczekujemy `"action": "talk"`) oraz prośbę o zakup jednej mikstury (oczekujemy `"action": "buy_potion"`).
+
 # %%
-# Sprawdzenie dwóch podstawowych przypadków: pytanie o ofertę i prośba o zakup
 prompt_text = build_merchant_prompt(initial_state)
 
 for sample_input in [
@@ -337,7 +341,7 @@ for sample_input in [
 # - niektóre modele potrafią mimo schematu dopisać coś poza nawiasami klamrowymi albo uciąć odpowiedź w połowie,
 # - nawet poprawny JSON może zawierać złą decyzję biznesową, na przykład `action="buy_potion"` i tekst „Oto Twoja mikstura!”, mimo że gracz ma tylko 5 monet albo w sklepie nic już nie zostało.
 #
-# Z tego powodu program w Pythonie robi własną kontrolę w kilku krokach: pilnuje limitu czasu, bezpiecznie wyciąga i parsuje JSON, sprawdza czy `reply` to niepusty tekst, a `action` należy do `ALLOWED_ACTIONS`, i dopiero na końcu sam sprawdza `state.coins` oraz `state.potions`. Komunikat o tym, czy zakup się udał, generuje nasz kod na podstawie prawdziwej decyzji programu, a nie tekstu wygenerowanego przez model.
+# Podzielimy więc obsługę tury na kilka małych funkcji. Zaczniemy od `call_merchant_llm`, która wysyła zapytanie do API z pilnowaniem limitu czasu (`timeout_sec`) i zwraca surowy tekst odpowiedzi, czas trwania, informację o ewentualnym przekroczeniu czasu oraz treść błędu.
 
 # %%
 import time
@@ -357,7 +361,6 @@ def call_merchant_llm(
     max_output_tokens: Optional[int] = None,
     reasoning_effort: Optional[str] = None,
 ) -> tuple[str, float, bool, Optional[str]]:
-    """Wywołuje model przez skonfigurowane API z obsługą limitu czasu i zwraca (tekst, czas_s, czy_timeout, błąd)."""
     target_model = model_name or model.value
 
     def _invoke() -> str:
@@ -405,8 +408,11 @@ def call_merchant_llm(
             return "", time.perf_counter() - start, False, str(exc)
 
 
+# %% [markdown]
+# Niektóre modele potrafią owinąć odpowiedź w znaczniki ```` ```json ... ``` ```` albo dopisać komentarz przed lub po właściwym obiekcie. Pomocnicza funkcja `_extract_first_json_object` wyszukuje w tekście pierwszy kompletny fragment ujęty w nawiasy klamrowe `{...}`, uwzględniając przy tym cudzysłowy i znaki ucieczki.
+
+# %%
 def _extract_first_json_object(text: str) -> str:
-    """Wyciąga pierwszy kompletny obiekt JSON {...}, ignorując tekst wokół niego."""
     start_idx = text.find("{")
     if start_idx == -1:
         return text
@@ -436,8 +442,11 @@ def _extract_first_json_object(text: str) -> str:
     return text[start_idx:]
 
 
+# %% [markdown]
+# Kolejny krok to `parse_and_validate_response`. Funkcja parsuje tekst jako JSON i sprawdza, czy zawiera niepuste pole tekstowe `reply` oraz pole `action` należące do `ALLOWED_ACTIONS`. Zwraca osobno informację o poprawności samego JSON-a i o poprawności akcji, co przyda się później przy wypełnianiu tabeli w sprawozdaniu.
+
+# %%
 def parse_and_validate_response(raw_text: str) -> tuple[bool, bool, Optional[str], str, Optional[str]]:
-    """Sprawdza surową odpowiedź modelu: poprawność JSON, obecność pól i listę ALLOWED_ACTIONS."""
     if not raw_text or not raw_text.strip():
         return False, False, None, "", "Pusta odpowiedź modelu."
 
@@ -475,14 +484,12 @@ def parse_and_validate_response(raw_text: str) -> tuple[bool, bool, Optional[str
     return True, True, action_clean, reply_clean, None
 
 
+# %% [markdown]
+# Żeby wygodnie analizować przebieg poszczególnych prób, zapiszemy wszystkie informacje o pojedynczej turze (stan przed i po, surową odpowiedź modelu, wynik walidacji i komunikat programu) w obiekcie `TurnResult`.
+
 # %%
-from collections.abc import Callable
-
-
 @dataclass
 class TurnResult:
-    """Zapis pojedynczej tury rozmowy oraz decyzji podjętej przez program."""
-
     scenario_name: str
     player_input: str
     state_before: GameState
@@ -499,6 +506,15 @@ class TurnResult:
     error: Optional[str] = None
 
 
+# %% [markdown]
+# Funkcja `process_turn` spina całość logiki gry dla pojedynczej wypowiedzi gracza. Najpierw tworzy kopię stanu gry, odpytuje model (lub przyjmuje sztuczną odpowiedź `mock_raw_output` na potrzeby testów), a następnie uruchamia walidację.
+#
+# Jeśli wszystko jest poprawne, a model zaproponował `"buy_potion"`, program sam sprawdza, czy w magazynie jest przynajmniej jedna mikstura i czy gracz ma wystarczająco dużo monet. Dopiero wtedy odejmuje cenę od salda gracza i zmniejsza stan magazynu. W każdym innym przypadku stan gry pozostaje nietknięty.
+
+# %%
+from collections.abc import Callable
+
+
 def process_turn(
     player_input: str,
     state: GameState,
@@ -510,7 +526,6 @@ def process_turn(
     timeout_sec: float = 20.0,
     mock_raw_output: Optional[str] = None,
 ) -> TurnResult:
-    """Przeprowadza jedną turę: pyta model, waliduje JSON i rozstrzyga zakup w Pythonie."""
     state_before = state.copy()
     state_after = state.copy()
 
@@ -604,8 +619,11 @@ def process_turn(
     )
 
 
+# %% [markdown]
+# Dodajmy jeszcze prostą funkcję `print_turn_summary`, która w czytelny sposób wypisze na ekranie przebieg pojedynczej tury: stan początkowy, wypowiedź gracza, propozycję modelu oraz ostateczną decyzję programu.
+
+# %%
 def print_turn_summary(turn: TurnResult, character_name: str = "Kupiec Barnaba") -> None:
-    """Wypisuje czytelny ekran tekstowy pojedynczej tury rozmowy."""
     border = "=" * 78
     sep = "-" * 78
     print(border)
@@ -638,11 +656,14 @@ def print_turn_summary(turn: TurnResult, character_name: str = "Kupiec Barnaba")
     print(border + "\n")
 
 
+# %% [markdown]
+# Zanim przejdziemy do rozmowy z prawdziwym modelem, sprawdźmy zachowanie walidatora na trzech sztucznie spreparowanych odpowiedziach (`mock_raw_output`).
+#
+# Pierwszy test symuluje sytuację, w której model urwał odpowiedź w połowie i zwrócił niepoprawny składniowo JSON.
+
 # %%
-# Testy walidatora na sztucznych odpowiedziach (bez wywoływania API)
 dummy_state = GameState(coins=15, potions=2, potion_price=10)
 
-print("--- Test 1: Ucięty JSON ---")
 res_bad_json = process_turn(
     "Kupię miksturę",
     dummy_state,
@@ -652,7 +673,10 @@ res_bad_json = process_turn(
 print(res_bad_json.system_message, "| Stan po:", res_bad_json.state_after.format_short())
 assert res_bad_json.state_after == dummy_state
 
-print("\n--- Test 2: Nieznana akcja spoza listy ---")
+# %% [markdown]
+# Drugi test sprawdza poprawny JSON, w którym model wymyślił własną nazwę akcji spoza `ALLOWED_ACTIONS` (na przykład `"give_free_gold"`).
+
+# %%
 res_bad_action = process_turn(
     "Oddaj złoto!",
     dummy_state,
@@ -662,7 +686,10 @@ res_bad_action = process_turn(
 print(res_bad_action.system_message, "| Stan po:", res_bad_action.state_after.format_short())
 assert res_bad_action.state_after == dummy_state
 
-print("\n--- Test 3: Model 'sprzedaje' miksturę mimo braku monet ---")
+# %% [markdown]
+# Trzeci test pokazuje najważniejszy przypadek biznesowy: gracz ma tylko 5 monet, a model w polu `reply` radośnie zgadza się na rabat i zwraca `"action": "buy_potion"`. Nasz kod w Pythonie powinien zignorować obietnicę z tekstu i zablokować transakcję po sprawdzeniu salda.
+
+# %%
 poor_state = GameState(coins=5, potions=1, potion_price=10)
 res_poor = process_turn(
     "Poproszę miksturę za 5 monet",
@@ -673,8 +700,10 @@ res_poor = process_turn(
 print(res_poor.system_message, "| Stan po:", res_poor.state_after.format_short())
 assert res_poor.state_after == poor_state
 
+# %% [markdown]
+# Poniższy widżet pozwala porozmawiać z kupcem „na żywo” z zachowaniem ciągłości stanu gry (`live_state`). Każde kliknięcie **Wyślij** uruchamia `process_turn` i aktualizuje licznik monet oraz mikstur u góry formularza, a przycisk **Resetuj stan gry** przywraca wartości początkowe.
+
 # %%
-# Interaktywna rozmowa z kupcem powiązana z żywym stanem gry
 live_state = initial_state.copy()
 
 
@@ -762,6 +791,8 @@ display(chat_box)
 # 4. Zakup przy pustym magazynie (start: 15 monet, 0 mikstur).
 # 5. Niejasna wypowiedź gracza (start: 15 monet, 2 mikstury).
 # 6. Żądanie nieobsługiwanej czynności, na przykład sprzedaży starego miecza albo prośby o kredyt (start: 15 monet, 2 mikstury).
+#
+# Zapiszmy najpierw parametry wszystkich sześciu prób na liście `TEST_SCENARIOS`. Flaga `use_previous_state` w trzecim scenariuszu mówi programowi, żeby zamiast tworzyć nowy stan początkowy, przejął stan gry powstały po drugim scenariuszu.
 
 # %%
 TEST_SCENARIOS: list[dict[str, Any]] = [
@@ -821,13 +852,15 @@ TEST_SCENARIOS: list[dict[str, Any]] = [
     },
 ]
 
+# %% [markdown]
+# Funkcja `run_scenarios` przechodzi po kolei przez listę scenariuszy, wywołuje `process_turn`, wypisuje podsumowanie każdej próby i zwraca listę wyników. Uruchommy ją dla naszego domyślnego kupca Barnaby.
 
+# %%
 def run_scenarios(
     scenarios: list[dict[str, Any]] = TEST_SCENARIOS,
     prompt_builder: Callable[[GameState], str] = build_merchant_prompt,
     character_name: str = "Kupiec Barnaba",
 ) -> list[TurnResult]:
-    """Uruchamia zestaw scenariuszy testowych i wypisuje przebieg każdego z nich."""
     results: list[TurnResult] = []
     previous_state = GameState(coins=15, potions=2, potion_price=10)
 
@@ -859,16 +892,15 @@ test_results = run_scenarios()
 # %% [markdown]
 # ### Podsumowanie wyników i przygotowanie do dema
 #
-# Poniższe funkcje wypisują zwięzłą tabelę do szybkiego przeglądu oraz gotową tabelę w formacie Markdown, którą można wkleić prosto do sprawozdania.
-#
-# W opisie wyników (i podczas krótkiego dema na koniec zajęć) warto wyraźnie rozdzielić trzy rzeczy:
+# W opisie wyników w sprawozdaniu (oraz podczas krótkiego dema na koniec zajęć) warto wyraźnie rozdzielić trzy warstwy:
 # 1. Poprawność formatu: czy model za każdym razem zwrócił poprawny JSON zgodny ze schematem.
 # 2. Rozpoznanie intencji: czy pole `action` pasowało do słów gracza. Zwróć uwagę na próby 3 i 4, gdzie gracz chce kupić miksturę, ale nie pozwalają na to zasady gry. Nawet jeśli model zwróci `buy_potion` (bo rozpoznał chęć zakupu), transakcję powinien zatrzymać kod w Pythonie.
-# 3. Zmianę stanu gry: czy monety i mikstury zmieniły się wyłącznie w próbie 2 i czy program nie uległ złudnym obietnicom modelu w polu `reply`.
+# 3. Zmianę stanu gry: czy monety i mikstury zmieniły się wyłącznie w próbie 2 i czy program nie uległ ewentualnym obietnicom modelu w polu `reply`.
+#
+# Najpierw wypiszmy zwięzłą tabelę tekstową podsumowującą wszystkie sześć prób.
 
 # %%
 def print_results_table(results: list[TurnResult]) -> None:
-    """Wypisuje zwięzłą tabelę wyników w konsoli."""
     header = (
         f"{'Nr':<3} | {'Scenariusz':<30} | {'Stan przed':<13} | "
         f"{'JSON':<4} | {'Akcja LLM':<12} | {'Decyzja programu':<17} | {'Stan po':<13}"
@@ -895,8 +927,13 @@ def print_results_table(results: list[TurnResult]) -> None:
         )
 
 
+print_results_table(test_results)
+
+# %% [markdown]
+# Poniższa funkcja formatuje te same wyniki jako tabelę Markdown, którą można bezpośrednio skopiować i wkleić do pliku sprawozdania.
+
+# %%
 def print_markdown_table(results: list[TurnResult]) -> None:
-    """Generuje tabelę w formacie Markdown do wklejenia do sprawozdania."""
     print(
         "| Nr | Scenariusz | Wypowiedź gracza | Stan początkowy | JSON OK | "
         "Proponowana akcja | Odpowiedź modelu (skrót) | Decyzja programu | Stan końcowy |"
@@ -917,10 +954,6 @@ def print_markdown_table(results: list[TurnResult]) -> None:
         )
 
 
-print("=== ZBIORCZA TABELA WYNIKÓW ===\n")
-print_results_table(test_results)
-
-print("\n=== TABELA MARKDOWN DO SPRAWOZDANIA ===\n")
 print_markdown_table(test_results)
 
 # %% [markdown]
@@ -928,13 +961,10 @@ print_markdown_table(test_results)
 #
 # ### 1. Druga postać o innym stylu wypowiedzi
 #
-# Spróbuj zmienić sam charakter sprzedawcy, zostawiając dokładnie te same zasady gry, cenę i format JSON. Poniżej przykład z gburowatym goblińskim alchemikiem Grizem, który mówi krótko i chaotycznie.
-#
-# Po uruchomieniu tych samych sześciu prób sprawdź, czy mocne odgrywanie roli wpływa na poprawność formatu JSON albo na to, jak trafnie model wybiera `action`.
+# Spróbuj zmienić sam charakter sprzedawcy, zostawiając dokładnie te same zasady gry, cenę i format JSON. Poniżej przykład funkcji `build_goblin_prompt`, która tworzy instrukcję dla gburowatego goblińskiego alchemika Griza mówiącego krótko i chaotycznie.
 
 # %%
 def build_goblin_prompt(state: GameState) -> str:
-    """Instrukcja dla drugiej postaci (goblin Griz) przy tych samych zasadach transakcji."""
     return f"""Jesteś zrzędliwym, chciwym goblińskim alchemikiem o imieniu Griz.
 Mówisz krótko, szorstko i chaotycznie, używasz wykrzykników i wtrąceń typu 'Hehe!', 'Złotko!', 'Griz nie głupi!', wyłącznie po polsku.
 
@@ -951,12 +981,15 @@ Zasady sklepu i wyboru pola "action":
 """
 
 
+# %% [markdown]
+# Uruchommy teraz zestaw sześciu scenariuszy dla Goblina Griza i zobaczmy w tabeli, czy mocniejsze „wczucie się w rolę” wpłynęło na poprawność formatu JSON lub wybór pola `action`.
+
+# %%
 goblin_results = run_scenarios(
     prompt_builder=build_goblin_prompt,
     character_name="Goblin Griz",
 )
 
-print("=== PORÓWNANIE WYNIKÓW: GOBLIN GRIZ ===\n")
 print_results_table(goblin_results)
 
 # %% [markdown]
