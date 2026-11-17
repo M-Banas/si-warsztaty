@@ -36,8 +36,8 @@
 # Dlaczego tak, a nie `api_key="sk-..."` w komórce? Notatniki bardzo często krążą potem na Teamsach, lądują na GitHubie albo widać je na rzutniku podczas prezentacji. Gdy klucz zostanie zapisany w kodzie, łatwo go przypadkiem udostępnić innym osobom, które będą mogły korzystać z Twojego konta.
 
 # %% id="hvO456J1aOw2"
-from openai import OpenAI
 from google.colab import userdata
+from openai import OpenAI
 
 PROVIDER_BASE_URL = "https://openrouter.ai/api/v1"  # @param {type:"string"}
 
@@ -115,6 +115,32 @@ form = widgets.VBox(
 )
 display(form)
 
+# %% [markdown]
+# ### Domyślne parametry generowania
+#
+# W całym notatniku korzystamy ze stałych ustawień początkowych (`DEFAULT_REASONING_EFFORT`, `DEFAULT_MAX_OUTPUT_TOKENS`, `DEFAULT_TEMPERATURE`, `DEFAULT_TOP_P`). Pozostaną one aktywne aż do momentu, gdy w sekcji z zadaniami dodatkowymi na końcu notatnika zaznaczysz pole wyboru przełączające źródło parametrów na kontrolki zaawansowane.
+
+# %%
+from typing import Any
+
+USE_ADVANCED_SETTINGS = False
+
+
+def get_generation_params() -> dict[str, Any]:
+    if USE_ADVANCED_SETTINGS:
+        return {
+            "reasoning_effort": adv_reasoning_effort.value,
+            "max_output_tokens": int(adv_max_output_tokens.value),
+            "temperature": float(adv_temperature.value),
+            "top_p": float(adv_top_p.value),
+        }
+    return {
+        "reasoning_effort": "none",
+        "max_output_tokens": 256,
+        "temperature": 0.2,
+        "top_p": 1.0,
+    }
+
 # %% [markdown] id="Z7VFFaiybLS7"
 # ## Stan gry
 #
@@ -173,7 +199,8 @@ print(f"Stan początkowy: {initial_state.format_short()}")
 # Ustawiamy też `ConfigDict(extra="forbid")`. Dzięki temu w wygenerowanym schemacie pojawi się `"additionalProperties": false`, którego wymaga tryb ścisły (`strict=True`) w OpenAI Responses API.
 
 # %% id="EB6mL_63t3KF"
-from typing import Literal, Optional
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -272,10 +299,15 @@ def on_structured_send_click(_):
             print(f"Model: {model.value}")
             print(f"Gracz: {structured_test_prompt.value}\n")
             try:
+                params = get_generation_params()
                 response = client.responses.create(
                     model=model.value,
                     instructions=structured_system_prompt.value,
                     input=structured_test_prompt.value,
+                    temperature=params["temperature"],
+                    top_p=params["top_p"],
+                    max_output_tokens=params["max_output_tokens"],
+                    reasoning={"effort": params["reasoning_effort"]},
                     text={
                         "format": {
                             "type": "json_schema",
@@ -314,11 +346,15 @@ for sample_input in [
 ]:
     print(f"Gracz: {sample_input}")
     try:
+        params = get_generation_params()
         response = client.responses.create(
             model=model.value,
             instructions=prompt_text,
             input=sample_input,
-            temperature=0.2,
+            temperature=params["temperature"],
+            top_p=params["top_p"],
+            max_output_tokens=params["max_output_tokens"],
+            reasoning={"effort": params["reasoning_effort"]},
             text={
                 "format": {
                     "type": "json_schema",
@@ -345,38 +381,42 @@ for sample_input in [
 
 # %%
 import time
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Any
+
 from openai import APITimeoutError
 
 
 def call_merchant_llm(
     system_prompt: str,
     user_message: str,
-    model_name: Optional[str] = None,
-    schema: Optional[dict[str, Any]] = RESPONSE_SCHEMA,
-    temperature: float = 0.2,
+    model_name: str | None = None,
+    schema: dict[str, Any] | None = RESPONSE_SCHEMA,
+    temperature: float | None = None,
     timeout_sec: float = 20.0,
-    top_p: Optional[float] = None,
-    max_output_tokens: Optional[int] = None,
-    reasoning_effort: Optional[str] = None,
-) -> tuple[str, float, bool, Optional[str]]:
+    top_p: float | None = None,
+    max_output_tokens: int | None = None,
+    reasoning_effort: str | None = None,
+) -> tuple[str, float, bool, str | None]:
     target_model = model_name or model.value
+    params = get_generation_params()
+    eff_temperature = params["temperature"] if temperature is None else temperature
+    eff_top_p = params["top_p"] if top_p is None else top_p
+    eff_max_output_tokens = params["max_output_tokens"] if max_output_tokens is None else max_output_tokens
+    eff_reasoning_effort = params["reasoning_effort"] if reasoning_effort is None else reasoning_effort
 
     def _invoke() -> str:
         request_kwargs: dict[str, Any] = {
             "model": target_model,
             "instructions": system_prompt,
             "input": user_message,
-            "temperature": temperature,
+            "temperature": eff_temperature,
+            "top_p": eff_top_p,
+            "max_output_tokens": eff_max_output_tokens,
+            "reasoning": {"effort": eff_reasoning_effort},
             "timeout": timeout_sec,
         }
-        if top_p is not None:
-            request_kwargs["top_p"] = top_p
-        if max_output_tokens is not None:
-            request_kwargs["max_output_tokens"] = max_output_tokens
-        if reasoning_effort is not None:
-            request_kwargs["reasoning"] = {"effort": reasoning_effort}
 
         if schema:
             schema_payload = dict(schema)
@@ -446,7 +486,7 @@ def _extract_first_json_object(text: str) -> str:
 # Kolejny krok to `parse_and_validate_response`. Funkcja parsuje tekst jako JSON i sprawdza, czy zawiera niepuste pole tekstowe `reply` oraz pole `action` należące do `ALLOWED_ACTIONS`. Zwraca osobno informację o poprawności samego JSON-a i o poprawności akcji, co przyda się później przy wypełnianiu tabeli w sprawozdaniu.
 
 # %%
-def parse_and_validate_response(raw_text: str) -> tuple[bool, bool, Optional[str], str, Optional[str]]:
+def parse_and_validate_response(raw_text: str) -> tuple[bool, bool, str | None, str, str | None]:
     if not raw_text or not raw_text.strip():
         return False, False, None, "", "Pusta odpowiedź modelu."
 
@@ -496,14 +536,14 @@ class TurnResult:
     state_after: GameState
     raw_output: str
     json_valid: bool
-    proposed_action: Optional[str]
+    proposed_action: str | None
     merchant_reply: str
     action_valid: bool
     tx_allowed: bool
     system_message: str
     elapsed_sec: float
     timed_out: bool = False
-    error: Optional[str] = None
+    error: str | None = None
 
 
 # %% [markdown]
@@ -520,11 +560,11 @@ def process_turn(
     state: GameState,
     scenario_name: str = "Rozmowa",
     prompt_builder: Callable[[GameState], str] = build_merchant_prompt,
-    model_name: Optional[str] = None,
-    schema: Optional[dict[str, Any]] = RESPONSE_SCHEMA,
-    temperature: float = 0.2,
+    model_name: str | None = None,
+    schema: dict[str, Any] | None = RESPONSE_SCHEMA,
+    temperature: float | None = None,
     timeout_sec: float = 20.0,
-    mock_raw_output: Optional[str] = None,
+    mock_raw_output: str | None = None,
 ) -> TurnResult:
     state_before = state.copy()
     state_after = state.copy()
@@ -995,7 +1035,7 @@ print_results_table(goblin_results)
 # %% [markdown]
 # ### 2. Eksperymenty z parametrami generowania
 #
-# Na to, co i w jaki sposób odpowie model, wpływa nie tylko treść promptu, ale też parametry wywołania API. W poniższym formularzu możesz pobawić się kilkoma z nich i sprawdzić przy okazji, czy nasz walidator wyłapuje problemy:
+# Na to, co i w jaki sposób odpowie model, wpływa nie tylko treść promptu, ale też parametry wywołania API. W poniższym formularzu możesz pobawić się kilkoma z nich i sprawdzić przy okazji, czy nasz walidator wyłapuje problemy. Jeśli zaznaczysz pole wyboru na górze formularza, ustawione tutaj wartości zastąpią domyślne parametry globalne w całym notatniku.
 #
 # - `temperature` (0.0 do 2.0): steruje losowością doboru kolejnych słów (tokenów). Przy niskich wartościach (np. `0.2`) odpowiedzi są przewidywalne i powtarzalne, co dobrze sprawdza się przy klasyfikacji intencji. Wysoka temperatura (powyżej `1.0`) daje bardziej barwne wypowiedzi kupca, ale łatwo wtedy o zmyślone fakty albo zepsucie formatu JSON.
 # - `top_p` (0.0 do 1.0, tzw. *nucleus sampling*): zamiast rozważać cały słownik, model wybiera tylko spośród najbardziej prawdopodobnych tokenów, których łączne prawdopodobieństwo sumuje się do `top_p`. Zwykle zmienia się albo `temperature`, albo `top_p`, a drugi parametr zostawia się domyślny.
@@ -1004,6 +1044,21 @@ print_results_table(goblin_results)
 
 # %%
 adv_style = {"description_width": "140px"}
+
+adv_use_custom_params = widgets.Checkbox(
+    value=False,
+    description="Użyj ustawień zaawansowanych w całym notatniku",
+    indent=False,
+    layout=widgets.Layout(width="100%"),
+)
+
+
+def on_adv_toggle_change(change):
+    global USE_ADVANCED_SETTINGS
+    USE_ADVANCED_SETTINGS = bool(change["new"])
+
+
+adv_use_custom_params.observe(on_adv_toggle_change, names="value")
 
 adv_system_prompt = widgets.Textarea(
     value=build_merchant_prompt(initial_state),
@@ -1093,6 +1148,7 @@ adv_send_button.on_click(on_adv_send_click)
 
 adv_form = widgets.VBox(
     [
+        adv_use_custom_params,
         adv_system_prompt,
         adv_test_prompt,
         adv_max_output_tokens,
