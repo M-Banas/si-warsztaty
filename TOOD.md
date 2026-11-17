@@ -1,2 +1,0 @@
-- [ ] ustawić domyślne wartości w globalnym stanie notebooka: reasoning=none i max_tokens=512
-- [ ] niech ustawienia zaawansowane, po zaaplikowaniu, nadpisują wartości domyślne
