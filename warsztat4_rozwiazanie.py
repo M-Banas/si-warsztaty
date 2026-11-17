@@ -13,14 +13,14 @@
 # ---
 
 # %% [markdown]
-# # Warsztat 4: Rozmowa z kupcem sterowanym przez LLM (Google AI Studio)
+# # Warsztat 4: Rozmowa z kupcem sterowanym przez LLM (OpenRouter / OpenAI Responses API)
 
 # %% [markdown]
 # ### Cel ćwiczenia
 #
 # W grach fabularnych (RPG) gracze chętnie prowadzą swobodne rozmowy z postaciami niezależnymi (NPC), jednak stan świata gry — liczba monet w sakiewce, zawartość ekwipunku czy zapasy w sklepie — musi podlegać ścisłym, deterministycznym regułom.
 #
-# Waszym zadaniem jest zbudowanie tekstowego systemu dialogu z kupcem w grze przy użyciu modelu **Gemma 4 (`gemma-4-26b-a4b-it`)** uruchamianego przez API **Google AI Studio** (bez obciążania Waszych procesorów):
+# Waszym zadaniem jest zbudowanie tekstowego systemu dialogu z kupcem w grze przy użyciu modelu **Gemma 4 (`google/gemma-4-26b-a4b-it`)** uruchamianego przez **OpenRouter** (`https://openrouter.ai/api/v1`) z wykorzystaniem **OpenAI Responses API** (bez obciążania Waszych procesorów):
 # 1. Gracz wpisuje dowolną wypowiedź (np. pytanie o towar, prośbę o zakup mikstury, niejasną uwagę lub żądanie nieobsługiwanej akcji).
 # 2. Model językowy odgrywa rolę kupca, rozpoznaje intencję gracza i zwraca ustrukturyzowaną odpowiedź w formacie **JSON** zawierającą pola `"reply"` (wypowiedź kupca) oraz `"action"` (proponowana akcja: `"talk"` lub `"buy_potion"`).
 # 3. **Program w języku Python** waliduje strukturę JSON, sprawdza czy akcja należy do listy dozwolonych i **samodzielnie rozstrzyga**, czy transakcja jest możliwa (weryfikuje liczbę monet gracza oraz stan magazynu kupca), a następnie aktualizuje stan gry albo odrzuca zakup.
@@ -52,14 +52,14 @@
 # Notatnik jest w pełni **samowystarczalny** i przystosowany do uruchomienia w **Google Colab** (nie wymaga żadnych zewnętrznych plików z repozytorium).
 #
 # W tej części:
-# 1. Instalujemy wymagane pakiety (`google-generativeai`, `pydantic`).
+# 1. Instalujemy wymagane pakiety (`openai`, `pydantic`).
 # 2. Definiujemy wbudowane klasy stanu gry oraz funkcje pomocnicze do komunikacji z API i prezentacji wyników.
-# 3. Konfigurujemy klucz `GEMINI_API_KEY` wygenerowany w [Google AI Studio](https://aistudio.google.com/api-keys) — w Google Colab najwygodniej zapisać go w zakładce **Sekrety** (ikona klucza po lewej stronie) pod nazwą `GEMINI_API_KEY` albo wkleić w polu formularza / oknie po uruchomieniu komórki.
+# 3. Konfigurujemy klucz `OPENROUTER_API_KEY` wygenerowany w [OpenRouter](https://openrouter.ai/keys) (endpoint: `https://openrouter.ai/api/v1`) — w Google Colab najwygodniej zapisać go w zakładce **Sekrety** (ikona klucza po lewej stronie) pod nazwą `OPENROUTER_API_KEY` albo wkleić w polu formularza / oknie po uruchomieniu komórki.
 # 4. Omawiamy w zespole podział odpowiedzialności między model językowy a logikę gry i sprawdzamy połączenie z API.
 
 # %%
 # Instalacja wymaganych bibliotek w Google Colab / Jupyter
-# %pip install -q "google-generativeai>=0.8.3" "pydantic>=2.0"
+# %pip install -q "openai>=1.66.0" "pydantic>=2.0"
 
 # %%
 import json
@@ -70,11 +70,13 @@ from dataclasses import dataclass
 from getpass import getpass
 from typing import Any, Literal
 
-import google.generativeai as genai
-from pydantic import BaseModel, Field
+from openai import APITimeoutError, OpenAI
+from pydantic import BaseModel, ConfigDict, Field
 
-DEFAULT_MODEL = "gemma-4-26b-a4b-it"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+DEFAULT_MODEL = "google/gemma-4-26b-a4b-it"
 ALLOWED_ACTIONS = ("talk", "buy_potion")
+client: OpenAI | None = None
 
 
 @dataclass
@@ -127,28 +129,46 @@ def call_llm(
     seed: int = 42,
     timeout_sec: float = 20.0,
 ) -> tuple[str, float, bool, str | None]:
-    """Wywołuje model Google Gemma przez API Google AI Studio z obsługą formatu JSON."""
+    """Wywołuje model przez OpenRouter z użyciem OpenAI Responses API i wymuszonym formatem JSON."""
+    del seed  # Responses API nie obsługuje parametru seed
 
     def _invoke() -> str:
-        generation_config = genai.GenerationConfig(
-            temperature=temperature,
-            response_mime_type="application/json",
-        )
-        model_instance = genai.GenerativeModel(model_name=model)
+        active_client = client
+        if active_client is None:
+            api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+            if not api_key:
+                raise ValueError("Brak skonfigurowanego klienta OpenRouter (klucz OPENROUTER_API_KEY).")
+            active_client = OpenAI(base_url=OPENROUTER_BASE_URL, api_key=api_key)
 
         schema_instruction = ""
         if schema:
+            schema_payload = dict(schema)
+            if schema_payload.get("type") == "object" and "additionalProperties" not in schema_payload:
+                schema_payload["additionalProperties"] = False
+            text_config: dict[str, Any] = {
+                "format": {
+                    "type": "json_schema",
+                    "name": schema_payload.get("title", "MerchantResponse"),
+                    "strict": True,
+                    "schema": schema_payload,
+                }
+            }
             schema_instruction = (
                 "\n\nMUSISZ ODPOWIEDZIEĆ W ŚCISŁYM FORMACIE JSON ZGODNYM Z PONIŻSZYM SCHEMATEM:\n"
-                f"{json.dumps(schema, ensure_ascii=False)}"
+                f"{json.dumps(schema_payload, ensure_ascii=False)}"
             )
+        else:
+            text_config = {"format": {"type": "json_object"}}
 
-        full_prompt = f"{system_prompt}{schema_instruction}\n\nWYPOWIEDŹ GRACZA: {user_message}"
-        response = model_instance.generate_content(
-            full_prompt,
-            generation_config=generation_config,
+        response = active_client.responses.create(
+            model=model,
+            instructions=f"{system_prompt}{schema_instruction}",
+            input=user_message,
+            temperature=temperature,
+            text=text_config,
+            timeout=timeout_sec,
         )
-        return response.text
+        return response.output_text or ""
 
     start = time.perf_counter()
     with ThreadPoolExecutor(max_workers=1) as executor:
@@ -157,7 +177,7 @@ def call_llm(
             raw_text = future.result(timeout=timeout_sec)
             elapsed = time.perf_counter() - start
             return raw_text, elapsed, False, None
-        except FuturesTimeoutError:
+        except (FuturesTimeoutError, APITimeoutError):
             elapsed = time.perf_counter() - start
             return "", elapsed, True, f"Przekroczono limit czasu ({timeout_sec} s)"
         except Exception as exc:
@@ -245,50 +265,53 @@ def print_markdown_table(results: list[TurnResult]) -> None:
 
 
 # %%
-# Konfiguracja klucza API Google AI Studio (Google Colab Secrets / zmienna środowiskowa / input)
-GEMINI_API_KEY = ""  # @param {type:"string"}
+# Konfiguracja klucza API OpenRouter (Google Colab Secrets / zmienna środowiskowa / input)
+OPENROUTER_API_KEY = ""  # @param {type:"string"}
 
 
-def configure_gemini_api(manual_key: str = "") -> str:
-    """Konfiguruje klucz API z formularza Colab, zmiennych środowiskowych, Colab Secrets lub promptu."""
-    api_key = manual_key.strip() or os.environ.get("GEMINI_API_KEY", "").strip()
+def configure_openrouter_api(manual_key: str = "") -> OpenAI:
+    """Konfiguruje klienta OpenAI dla OpenRouter z formularza Colab, zmiennych środowiskowych, Colab Secrets lub promptu."""
+    api_key = manual_key.strip() or os.environ.get("OPENROUTER_API_KEY", "").strip()
 
     if not api_key:
         try:
             from google.colab import userdata
 
-            api_key = (userdata.get("GEMINI_API_KEY") or "").strip()
+            api_key = (userdata.get("OPENROUTER_API_KEY") or "").strip()
         except Exception:
             pass
 
     if not api_key:
-        api_key = getpass("Wklej swój klucz GEMINI_API_KEY z Google AI Studio: ").strip()
+        api_key = getpass("Wklej swój klucz OPENROUTER_API_KEY z OpenRouter: ").strip()
 
     if not api_key:
         raise ValueError(
-            "Brak klucza GEMINI_API_KEY! Dodaj go w Google Colab Secrets (nazwa: GEMINI_API_KEY) "
+            "Brak klucza OPENROUTER_API_KEY! Dodaj go w Google Colab Secrets (nazwa: OPENROUTER_API_KEY) "
             "lub wklej po uruchomieniu komórki."
         )
 
-    os.environ["GEMINI_API_KEY"] = api_key
-    genai.configure(api_key=api_key)
-    return api_key
+    os.environ["OPENROUTER_API_KEY"] = api_key
+    return OpenAI(
+        base_url=OPENROUTER_BASE_URL,
+        api_key=api_key,
+    )
 
 
-configure_gemini_api(GEMINI_API_KEY)
+client = configure_openrouter_api(OPENROUTER_API_KEY)
 
 MODEL_NAME = DEFAULT_MODEL
 TEMPERATURE = 0.2
 TIMEOUT_SEC = 20.0
 
 initial_state = GameState(coins=15, potions=2, potion_price=10)
-print(f"Wybrany model w chmurze: {MODEL_NAME}")
+print(f"Endpoint API: {OPENROUTER_BASE_URL}")
+print(f"Wybrany model na OpenRouter: {MODEL_NAME}")
 print(f"Dozwolone akcje: {ALLOWED_ACTIONS}")
 print(f"Stan początkowy gry: {initial_state.format_short()}")
 
 
 # %%
-# Szybki test połączenia z Google AI Studio
+# Szybki test połączenia z OpenRouter (OpenAI Responses API)
 raw_ping, ping_time, is_timeout, err = call_llm(
     system_prompt='Jesteś systemem testowym. Zwróć dokładnie taki JSON: {"status": "ok"}',
     user_message="Test połączenia",
@@ -302,7 +325,7 @@ print(f"Odpowiedź testowa z chmury ({ping_time:.2f} s, timeout={is_timeout}, b�
 # %% [markdown]
 # ### 2. Instrukcja dla kupca i schemat odpowiedzi JSON (10–30 min)
 #
-# Konfigurujemy model Google Gemma, aby zwracał odpowiedź w formacie JSON (`response_mime_type="application/json"`). Definiujemy schemat za pomocą klasy `Pydantic`, a następnie budujemy instrukcję systemową (`system_prompt`), która przekazuje modelowi:
+# Konfigurujemy model na OpenRouter przez OpenAI Responses API, aby zwracał odpowiedź w formacie JSON (`text={"format": {"type": "json_schema", ...}}`). Definiujemy schemat za pomocą klasy `Pydantic`, a następnie budujemy instrukcję systemową (`system_prompt`), która przekazuje modelowi:
 # - kim jest (kupiec Barnaba sprzedający wyłącznie mikstury uzdrawiające),
 # - jaki jest aktualny stan gry (monety gracza, liczba dostępnych mikstur w magazynie, cena jednej mikstury),
 # - jakie są dozwolone akcje (`"talk"` oraz `"buy_potion"`) i kiedy należy użyć każdej z nich,
@@ -312,6 +335,8 @@ print(f"Odpowiedź testowa z chmury ({ping_time:.2f} s, timeout={is_timeout}, b�
 class MerchantResponse(BaseModel):
     """Schemat odpowiedzi wymagany od modelu językowego."""
 
+    model_config = ConfigDict(extra="forbid")
+
     reply: str = Field(description="Wypowiedź kupca skierowana do gracza po polsku.")
     action: Literal["talk", "buy_potion"] = Field(
         description="Rozpoznana intencja/akcja: 'talk' dla rozmowy lub odmowy, 'buy_potion' gdy gracz chce kupić miksturę."
@@ -319,7 +344,7 @@ class MerchantResponse(BaseModel):
 
 
 RESPONSE_SCHEMA = MerchantResponse.model_json_schema()
-print("Wygenerowany schemat JSON dla AI Studio:")
+print("Wygenerowany schemat JSON dla OpenAI Responses API (OpenRouter):")
 print(json.dumps(RESPONSE_SCHEMA, indent=2, ensure_ascii=False))
 
 
