@@ -1,17 +1,3 @@
-# ---
-# jupyter:
-#   jupytext:
-#     text_representation:
-#       extension: .py
-#       format_name: percent
-#       format_version: '1.3'
-#       jupytext_version: 1.19.6
-#   kernelspec:
-#     display_name: Python 3 (ipykernel)
-#     language: python
-#     name: python3
-# ---
-
 # %% [markdown]
 # # Warsztat 4: Rozmowa z kupcem sterowanym przez LLM (OpenRouter / OpenAI Responses API)
 
@@ -20,7 +6,7 @@
 #
 # W grach fabularnych (RPG) gracze chętnie prowadzą swobodne rozmowy z postaciami niezależnymi (NPC), jednak stan świata gry — liczba monet w sakiewce, zawartość ekwipunku czy zapasy w sklepie — musi podlegać ścisłym, deterministycznym regułom.
 #
-# Waszym zadaniem jest zbudowanie tekstowego systemu dialogu z kupcem w grze przy użyciu modelu **Gemma 4 (`google/gemma-4-26b-a4b-it`)** uruchamianego przez **OpenRouter** (`https://openrouter.ai/api/v1`) z wykorzystaniem **OpenAI Responses API** (bez obciążania Waszych procesorów):
+# Waszym zadaniem jest zbudowanie tekstowego systemu dialogu z kupcem w grze przy użyciu modelu **NVIDIA Nemotron (`nvidia/nemotron-3.5-super-vl:free`)** uruchamianego przez **OpenRouter** (`https://openrouter.ai/api/v1`) z wykorzystaniem **OpenAI Responses API** (bez obciążania Waszych procesorów):
 # 1. Gracz wpisuje dowolną wypowiedź (np. pytanie o towar, prośbę o zakup mikstury, niejasną uwagę lub żądanie nieobsługiwanej akcji).
 # 2. Model językowy odgrywa rolę kupca, rozpoznaje intencję gracza i zwraca ustrukturyzowaną odpowiedź w formacie **JSON** zawierającą pola `"reply"` (wypowiedź kupca) oraz `"action"` (proponowana akcja: `"talk"` lub `"buy_potion"`).
 # 3. **Program w języku Python** waliduje strukturę JSON, sprawdza czy akcja należy do listy dozwolonych i **samodzielnie rozstrzyga**, czy transakcja jest możliwa (weryfikuje liczbę monet gracza oraz stan magazynu kupca), a następnie aktualizuje stan gry albo odrzuca zakup.
@@ -52,14 +38,9 @@
 # Notatnik jest w pełni **samowystarczalny** i przystosowany do uruchomienia w **Google Colab** (nie wymaga żadnych zewnętrznych plików z repozytorium).
 #
 # W tej części:
-# 1. Instalujemy wymagane pakiety (`openai`, `pydantic`).
-# 2. Definiujemy wbudowane klasy stanu gry oraz funkcje pomocnicze do komunikacji z API i prezentacji wyników.
-# 3. Konfigurujemy klucz `OPENROUTER_API_KEY` wygenerowany w [OpenRouter](https://openrouter.ai/keys) (endpoint: `https://openrouter.ai/api/v1`) — w Google Colab najwygodniej zapisać go w zakładce **Sekrety** (ikona klucza po lewej stronie) pod nazwą `OPENROUTER_API_KEY` albo wkleić w polu formularza / oknie po uruchomieniu komórki.
-# 4. Omawiamy w zespole podział odpowiedzialności między model językowy a logikę gry i sprawdzamy połączenie z API.
-
-# %%
-# Instalacja wymaganych bibliotek w Google Colab / Jupyter
-# %pip install -q "openai>=1.66.0" "pydantic>=2.0"
+# 1. Definiujemy wbudowane klasy stanu gry oraz funkcje pomocnicze do komunikacji z API i prezentacji wyników.
+# 2. Konfigurujemy klucz `OPENROUTER_API_KEY` wygenerowany w [OpenRouter](https://openrouter.ai/keys) (endpoint: `https://openrouter.ai/api/v1`) — w Google Colab najwygodniej zapisać go w zakładce **Sekrety** (ikona klucza po lewej stronie) pod nazwą `OPENROUTER_API_KEY` albo wkleić w polu formularza / oknie po uruchomieniu komórki.
+# 3. Omawiamy w zespole podział odpowiedzialności między model językowy a logikę gry i sprawdzamy połączenie z API.
 
 # %%
 import json
@@ -74,7 +55,7 @@ from openai import APITimeoutError, OpenAI
 from pydantic import BaseModel, ConfigDict, Field
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = "google/gemma-4-26b-a4b-it"
+DEFAULT_MODEL = "nvidia/nemotron-3.5-super-vl:free"
 ALLOWED_ACTIONS = ("talk", "buy_potion")
 client: OpenAI | None = None
 
